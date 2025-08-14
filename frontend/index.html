@@ -1,30 +1,742 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RDP – Application (squelette)</title>
-    <link rel="stylesheet" href="/css/styles.css" />
-  </head>
-  <body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur de Réseau de Petri - Parcours Patient</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --fg: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+
+        .app-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #0b1220;
+            background: #0b1220;
+        }
+
+        .app-header h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .app-main {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: calc(100vh - 70px);
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .top-controls {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            background: #0b1220;
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .canvas-container {
+            position: relative;
+            overflow: hidden;
+            background: #1e293b;
+            border-radius: 8px;
+            min-height: 500px;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            cursor: move;
+        }
+
+        .bottom-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 16px;
+            background: #0b1220;
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #0ea5e9;
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-info {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .status-info .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .place {
+            fill: #e2e8f0;
+            stroke: var(--accent);
+            stroke-width: 3;
+        }
+
+        .place.has-tokens {
+            fill: #dbeafe;
+        }
+
+        .transition {
+            fill: #64748b;
+            stroke: var(--fg);
+            stroke-width: 3;
+        }
+
+        .transition.enabled {
+            fill: var(--success);
+            stroke: #059669;
+        }
+
+        .transition.firing {
+            fill: var(--warning);
+            stroke: #d97706;
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        .edge {
+            stroke: var(--muted);
+            stroke-width: 3;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+
+        .edge.active {
+            stroke: var(--accent);
+            stroke-width: 4;
+        }
+
+        text {
+            fill: var(--fg);
+            font-size: 13px;
+            font-weight: 500;
+            text-anchor: middle;
+            dominant-baseline: central;
+        }
+
+        .place-label {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .transition-label {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .token {
+            fill: #fbbf24;
+            stroke: #f59e0b;
+            stroke-width: 2;
+        }
+
+        .log {
+            max-height: 120px;
+            overflow-y: auto;
+            background: #1e293b;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+
+        .log-entry.recent {
+            color: var(--accent);
+            opacity: 1;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .speed-control input[type="range"] {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
     <header class="app-header">
-      <h1>Réseaux de Petri – Démo (squelette)</h1>
+        <h1>Simulateur de Réseau de Petri - Parcours Patient Centre Médical</h1>
     </header>
-
+    
     <main class="app-main">
-      <div id="canvas" class="canvas" aria-label="Zone de dessin du graphe"></div>
-
-      <div class="controls">
-        <!-- Boutons réservés pour interactions (non implémentés) -->
-        <button id="reload" disabled>Recharger</button>
-        <button id="logs" disabled>Afficher les logs</button>
-      </div>
+        <div class="top-controls">
+            <button id="start-patient">Nouveau Patient (T1)</button>
+            <button id="step">Étape Suivante</button>
+            <button id="auto-run">Mode Automatique</button>
+            <button id="reset">Réinitialiser</button>
+            <div class="speed-control">
+                <span>Vitesse:</span>
+                <input type="range" id="speed" min="500" max="3000" value="1500">
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <svg id="canvas" viewBox="0 0 1400 800">
+                <defs>
+                    <marker id="arrowhead" markerWidth="12" markerHeight="8" 
+                        refX="11" refY="4" orient="auto">
+                        <polygon points="0 0, 12 4, 0 8" fill="#94a3b8" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+        
+        <div class="bottom-info">
+            <div class="control-group">
+                <h3>État du Réseau</h3>
+                <div class="status-info">
+                    <div class="status-item">
+                        <span>P1 - Patients en attente:</span>
+                        <span id="p1-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P2 - En consultation:</span>
+                        <span id="p2-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P3 - Salle occupée:</span>
+                        <span id="p3-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P4 - Médecin disponible:</span>
+                        <span id="p4-tokens">1</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P5 - Diagnostic:</span>
+                        <span id="p5-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P6 - Analyse labo:</span>
+                        <span id="p6-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P7 - Délivrance traitement:</span>
+                        <span id="p7-tokens">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P8 - Salle libre:</span>
+                        <span id="p8-tokens">1</span>
+                    </div>
+                    <div class="status-item">
+                        <span>P9 - Ordonnance:</span>
+                        <span id="p9-tokens">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Journal des Événements</h3>
+                <div class="log" id="log"></div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Légende</h3>
+                <div style="font-size: 11px; line-height: 1.4;">
+                    <div style="color: var(--success);">🟢 Transition activable</div>
+                    <div style="color: var(--muted);">⚪ Transition bloquée</div>
+                    <div style="color: var(--warning);">🟡 Jeton (patient/ressource)</div>
+                    <div style="margin-top: 8px;">
+                        <strong>Cliquez</strong> sur une transition pour la déclencher manuellement
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
-    <!-- Placeholders: ajoutez JointJS plus tard si nécessaire -->
-    <!-- <script src="/vendor/jointjs/joint.min.js"></script> -->
-    <script src="/js/app.js"></script>
-  </body>
-  </html>
+    <script>
+        class PetriNetSimulator {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.isAutoMode = false;
+                this.autoInterval = null;
+                this.speed = 1500;
+                
+                // État initial du réseau - positions selon le schéma fourni (agrandies)
+                this.places = {
+                    P1: { tokens: 0, x: 250, y: 350, label: 'P1\nFile d\'attente' },
+                    P2: { tokens: 0, x: 500, y: 450, label: 'P2\nConsultation' },
+                    P3: { tokens: 0, x: 500, y: 650, label: 'P3\nSalle occupée' },
+                    P4: { tokens: 1, x: 250, y: 200, label: 'P4\nMédecin disponible' },
+                    P5: { tokens: 0, x: 750, y: 350, label: 'P5\nDiagnostics cliniques' },
+                    P6: { tokens: 0, x: 1000, y: 450, label: 'P6\nAnalyse laboratoire' },
+                    P7: { tokens: 0, x: 750, y: 650, label: 'P7\nDélivrance traitement' },
+                    P8: { tokens: 1, x: 250, y: 650, label: 'P8\nSalle libre' },
+                    P9: { tokens: 0, x: 1000, y: 650, label: 'P9\nOrdonnance' }
+                };
 
+                this.transitions = {
+                    T1: { x: 120, y: 350, label: 'T1\nArrivée patient', inputs: [], outputs: ['P1'] },
+                    T2: { x: 375, y: 550, label: 'T2\nEntrée salle', inputs: ['P1', 'P8'], outputs: ['P2', 'P3'] },
+                    T3: { x: 375, y: 275, label: 'T3\nDiagnostic', inputs: ['P2', 'P4'], outputs: ['P5'] },
+                    T4: { x: 875, y: 400, label: 'T4\nAnalyse médicale', inputs: ['P5'], outputs: ['P6'] },
+                    T5: { x: 1125, y: 550, label: 'T5\nPrescription', inputs: ['P6'], outputs: ['P9', 'P4'] },
+                    T6: { x: 625, y: 650, label: 'T6\nOrdonnance', inputs: ['P9', 'P3'], outputs: ['P7', 'P8'] },
+                    T7: { x: 875, y: 720, label: 'T7\nSortie patient', inputs: ['P7'], outputs: [] }
+                };
 
+                this.log = [];
+                this.initializeCanvas();
+                this.bindEvents();
+                this.updateDisplay();
+            }
+
+            initializeCanvas() {
+                this.canvas.innerHTML = `
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                            refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+                        </marker>
+                    </defs>
+                `;
+
+                // Dessiner les arêtes d'abord
+                this.drawEdges();
+                
+                // Dessiner les places
+                Object.entries(this.places).forEach(([id, place]) => {
+                    this.drawPlace(id, place);
+                });
+
+                // Dessiner les transitions
+                Object.entries(this.transitions).forEach(([id, transition]) => {
+                    this.drawTransition(id, transition);
+                });
+            }
+
+            drawEdges() {
+                const edges = [
+                    // T1 vers P1
+                    { from: 'T1', to: 'P1' },
+                    // P1 et P8 vers T2
+                    { from: 'P1', to: 'T2' },
+                    { from: 'P8', to: 'T2' },
+                    // T2 vers P2 et P3
+                    { from: 'T2', to: 'P2' },
+                    { from: 'T2', to: 'P3' },
+                    // P2 et P4 vers T3
+                    { from: 'P2', to: 'T3' },
+                    { from: 'P4', to: 'T3' },
+                    // T3 vers P5
+                    { from: 'T3', to: 'P5' },
+                    // P5 vers T4
+                    { from: 'P5', to: 'T4' },
+                    // T4 vers P6
+                    { from: 'T4', to: 'P6' },
+                    // P6 vers T5
+                    { from: 'P6', to: 'T5' },
+                    // T5 vers P9 et retour vers P4
+                    { from: 'T5', to: 'P9' },
+                    { from: 'T5', to: 'P4' },
+                    // P9 et P3 vers T6
+                    { from: 'P9', to: 'T6' },
+                    { from: 'P3', to: 'T6' },
+                    // T6 vers P7 et P8
+                    { from: 'T6', to: 'P7' },
+                    { from: 'T6', to: 'P8' },
+                    // P7 vers T7
+                    { from: 'P7', to: 'T7' }
+                ];
+
+                edges.forEach(edge => {
+                    const fromNode = this.places[edge.from] || this.transitions[edge.from];
+                    const toNode = this.places[edge.to] || this.transitions[edge.to];
+                    
+                    if (fromNode && toNode) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('class', 'edge');
+                        
+                        // Calculer les points de connexion pour éviter les chevauchements
+                        let x1 = fromNode.x;
+                        let y1 = fromNode.y;
+                        let x2 = toNode.x;
+                        let y2 = toNode.y;
+                        
+                        // Ajuster les points de départ et d'arrivée selon le type de nœud
+                        const isFromPlace = this.places[edge.from];
+                        const isToPlace = this.places[edge.to];
+                        
+                        if (isFromPlace) {
+                            // Partir du bord du cercle
+                            const angle = Math.atan2(y2 - y1, x2 - x1);
+                            x1 += Math.cos(angle) * 35;
+                            y1 += Math.sin(angle) * 35;
+                        } else {
+                            // Partir du bord du rectangle
+                            if (x2 > x1) x1 += 20;
+                            else if (x2 < x1) x1 -= 20;
+                        }
+                        
+                        if (isToPlace) {
+                            // Arriver au bord du cercle
+                            const angle = Math.atan2(y1 - y2, x1 - x2);
+                            x2 += Math.cos(angle) * 35;
+                            y2 += Math.sin(angle) * 35;
+                        } else {
+                            // Arriver au bord du rectangle
+                            if (x1 > x2) x2 += 20;
+                            else if (x1 < x2) x2 -= 20;
+                        }
+                        
+                        line.setAttribute('x1', x1);
+                        line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2);
+                        line.setAttribute('y2', y2);
+                        this.canvas.appendChild(line);
+                    }
+                });
+            }
+
+            drawPlace(id, place) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('class', `place ${place.tokens > 0 ? 'has-tokens' : ''}`);
+                circle.setAttribute('cx', place.x);
+                circle.setAttribute('cy', place.y);
+                circle.setAttribute('r', 35);
+                circle.setAttribute('id', `place-${id}`);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('class', 'place-label');
+                text.setAttribute('x', place.x);
+                text.setAttribute('y', place.y - 55);
+                text.textContent = place.label;
+                
+                g.appendChild(circle);
+                g.appendChild(text);
+                this.canvas.appendChild(g);
+                
+                this.updateTokens(id);
+            }
+
+            drawTransition(id, transition) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('class', `transition ${this.isTransitionEnabled(id) ? 'enabled' : ''}`);
+                rect.setAttribute('x', transition.x - 20);
+                rect.setAttribute('y', transition.y - 12);
+                rect.setAttribute('width', 40);
+                rect.setAttribute('height', 24);
+                rect.setAttribute('id', `transition-${id}`);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('class', 'transition-label');
+                text.setAttribute('x', transition.x);
+                text.setAttribute('y', transition.y - 35);
+                text.textContent = transition.label;
+                
+                g.appendChild(rect);
+                g.appendChild(text);
+                this.canvas.appendChild(g);
+            }
+
+            updateTokens(placeId) {
+                const place = this.places[placeId];
+                const placeElement = document.getElementById(`place-${placeId}`);
+                
+                // Supprimer les anciens jetons
+                const oldTokens = this.canvas.querySelectorAll(`[data-place="${placeId}"]`);
+                oldTokens.forEach(token => token.remove());
+                
+                // Ajouter les nouveaux jetons
+                for (let i = 0; i < place.tokens; i++) {
+                    const token = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    token.setAttribute('class', 'token');
+                    token.setAttribute('data-place', placeId);
+                    token.setAttribute('r', 6);
+                    
+                    // Position des jetons selon leur nombre
+                    let tokenX = place.x;
+                    let tokenY = place.y;
+                    
+                    if (place.tokens === 1) {
+                        tokenX = place.x;
+                        tokenY = place.y;
+                    } else if (place.tokens === 2) {
+                        tokenX = place.x + (i === 0 ? -8 : 8);
+                        tokenY = place.y;
+                    } else {
+                        const angle = (i * 2 * Math.PI) / place.tokens;
+                        tokenX = place.x + 12 * Math.cos(angle);
+                        tokenY = place.y + 12 * Math.sin(angle);
+                    }
+                    
+                    token.setAttribute('cx', tokenX);
+                    token.setAttribute('cy', tokenY);
+                    this.canvas.appendChild(token);
+                }
+                
+                // Mettre à jour la classe de la place
+                placeElement.setAttribute('class', `place ${place.tokens > 0 ? 'has-tokens' : ''}`);
+            }
+
+            isTransitionEnabled(transitionId) {
+                const transition = this.transitions[transitionId];
+                return transition.inputs.every(placeId => this.places[placeId].tokens > 0);
+            }
+
+            fireTransition(transitionId) {
+                if (!this.isTransitionEnabled(transitionId)) return false;
+                
+                const transition = this.transitions[transitionId];
+                const transitionElement = document.getElementById(`transition-${transitionId}`);
+                
+                // Animation de tir
+                transitionElement.setAttribute('class', 'transition firing');
+                
+                setTimeout(() => {
+                    // Retirer les jetons des places d'entrée
+                    transition.inputs.forEach(placeId => {
+                        this.places[placeId].tokens--;
+                        this.updateTokens(placeId);
+                    });
+                    
+                    // Ajouter les jetons aux places de sortie
+                    transition.outputs.forEach(placeId => {
+                        this.places[placeId].tokens++;
+                        this.updateTokens(placeId);
+                    });
+                    
+                    // Mettre à jour l'affichage
+                    this.updateDisplay();
+                    this.addLog(`Transition ${transitionId} déclenchée: ${transition.label}`);
+                    
+                    // Réinitialiser l'animation
+                    transitionElement.setAttribute('class', `transition ${this.isTransitionEnabled(transitionId) ? 'enabled' : ''}`);
+                }, 250);
+                
+                return true;
+            }
+
+            getEnabledTransitions() {
+                return Object.keys(this.transitions).filter(id => this.isTransitionEnabled(id));
+            }
+
+            step() {
+                const enabled = this.getEnabledTransitions();
+                if (enabled.length > 0) {
+                    // Prioriser certaines transitions selon la logique métier
+                    const priority = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                    const prioritized = priority.find(t => enabled.includes(t)) || enabled[0];
+                    this.fireTransition(prioritized);
+                    return true;
+                }
+                return false;
+            }
+
+            updateDisplay() {
+                // Mettre à jour les compteurs
+                Object.keys(this.places).forEach(placeId => {
+                    const element = document.getElementById(`${placeId.toLowerCase()}-tokens`);
+                    if (element) {
+                        element.textContent = this.places[placeId].tokens;
+                    }
+                });
+
+                // Mettre à jour les classes des transitions
+                Object.keys(this.transitions).forEach(transitionId => {
+                    const element = document.getElementById(`transition-${transitionId}`);
+                    if (element) {
+                        element.setAttribute('class', `transition ${this.isTransitionEnabled(transitionId) ? 'enabled' : ''}`);
+                    }
+                });
+            }
+
+            addLog(message) {
+                this.log.push({
+                    timestamp: new Date().toLocaleTimeString(),
+                    message: message
+                });
+                
+                const logElement = document.getElementById('log');
+                const entry = document.createElement('div');
+                entry.className = 'log-entry recent';
+                entry.textContent = `${this.log[this.log.length - 1].timestamp}: ${message}`;
+                
+                logElement.appendChild(entry);
+                logElement.scrollTop = logElement.scrollHeight;
+                
+                // Retirer la classe 'recent' après 2 secondes
+                setTimeout(() => {
+                    entry.classList.remove('recent');
+                }, 2000);
+            }
+
+            reset() {
+                this.stopAutoMode();
+                
+                // Réinitialiser l'état
+                Object.keys(this.places).forEach(placeId => {
+                    this.places[placeId].tokens = 0;
+                });
+                
+                // État initial
+                this.places.P4.tokens = 1; // Médecin disponible
+                this.places.P8.tokens = 1; // Salle libre
+                
+                // Réinitialiser l'affichage
+                Object.keys(this.places).forEach(placeId => {
+                    this.updateTokens(placeId);
+                });
+                
+                this.updateDisplay();
+                this.log = [];
+                document.getElementById('log').innerHTML = '';
+                this.addLog('Réseau réinitialisé');
+            }
+
+            startAutoMode() {
+                if (this.isAutoMode) return;
+                
+                this.isAutoMode = true;
+                this.autoInterval = setInterval(() => {
+                    if (!this.step()) {
+                        this.stopAutoMode();
+                        this.addLog('Mode automatique arrêté - aucune transition possible');
+                    }
+                }, this.speed);
+                
+                this.addLog('Mode automatique démarré');
+            }
+
+            stopAutoMode() {
+                this.isAutoMode = false;
+                if (this.autoInterval) {
+                    clearInterval(this.autoInterval);
+                    this.autoInterval = null;
+                }
+            }
+
+            bindEvents() {
+                document.getElementById('start-patient').addEventListener('click', () => {
+                    this.fireTransition('T1');
+                });
+
+                document.getElementById('step').addEventListener('click', () => {
+                    if (!this.step()) {
+                        this.addLog('Aucune transition possible');
+                    }
+                });
+
+                document.getElementById('auto-run').addEventListener('click', (e) => {
+                    if (this.isAutoMode) {
+                        this.stopAutoMode();
+                        e.target.textContent = 'Mode Automatique';
+                    } else {
+                        this.startAutoMode();
+                        e.target.textContent = 'Arrêter Auto';
+                    }
+                });
+
+                document.getElementById('reset').addEventListener('click', () => {
+                    this.reset();
+                    document.getElementById('auto-run').textContent = 'Mode Automatique';
+                });
+
+                document.getElementById('speed').addEventListener('input', (e) => {
+                    this.speed = parseInt(e.target.value);
+                    if (this.isAutoMode) {
+                        this.stopAutoMode();
+                        this.startAutoMode();
+                    }
+                });
+
+                // Permettre de cliquer sur les transitions pour les déclencher manuellement
+                this.canvas.addEventListener('click', (e) => {
+                    if (e.target.id && e.target.id.startsWith('transition-')) {
+                        const transitionId = e.target.id.replace('transition-', '');
+                        if (this.isTransitionEnabled(transitionId)) {
+                            this.fireTransition(transitionId);
+                        } else {
+                            this.addLog(`Transition ${transitionId} non activable`);
+                        }
+                    }
+                });
+            }
+        }
+
+        // Initialiser l'application
+        document.addEventListener('DOMContentLoaded', () => {
+            new PetriNetSimulator();
+        });
+    </script>
+</body>
+</html>
